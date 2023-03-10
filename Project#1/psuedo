@@ -1,0 +1,25 @@
+assumes all processes are provided in ascending order time
+
+time = 0
+ProcessesLeft = len(processes)//used to know how many process are left to complete, once this hits 0 we stop the time loop
+//Time runs until all process have been completed
+While ProcessesLeft > 0 {
+readyQueue = make([]string, len(processes)) //create queue with a size = to processes slice
+
+for i := range processes {
+    if processes[i].arrivalTime == time { //if its arival time is reached we can add it to the queue
+
+    }
+}
+
+
+//
+
+
+
+
+
+**jobs are put into queue as they come**
+
+
+}

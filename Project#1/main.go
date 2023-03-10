@@ -4,13 +4,13 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"github.com/olekukonko/tablewriter"
 	"io"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/olekukonko/tablewriter"
 )
 
 func main() {
@@ -31,7 +31,7 @@ func main() {
 	FCFSSchedule(os.Stdout, "First-come, first-serve", processes)
 
 	// Shortest-job-first scheduling
-	//SJFSchedule(os.Stdout, "Shortest-job-first", processes)
+	SJFSchedule(os.Stdout, "Shortest-job-first", processes)
 	//SJFPrioritySchedule(os.Stdout, "Priority", processes)
 
 	//
@@ -64,6 +64,9 @@ type (
 		ArrivalTime   int64
 		BurstDuration int64
 		Priority      int64
+		Wait          int64
+		Turnaround    int64
+		Burst         int64
 	}
 	TimeSlice struct {
 		PID   int64
@@ -131,6 +134,99 @@ func FCFSSchedule(w io.Writer, title string, processes []Process) {
 }
 
 func SJFSchedule(w io.Writer, title string, processes []Process) {
+	var (
+		//serviceTime     int64
+		start           int64
+		totalWait       float64
+		totalTurnaround float64
+		//lastCompletion  float64
+		schedule     = make([][]string, len(processes))
+		gantt        = make([]TimeSlice, 0)
+		time         int64     //time counter
+		pCount       int       //counter for processes slice
+		readyQueue   []Process //Queue for processes ready to be executed
+		executedP    Process   // process that is currently being executed
+		numProcesses int       = len(processes)
+	)
+	start = time
+	outputTitle(w, title)
+	fmt.Println(executedP)
+	//fmt.Println(len(readyQueue))
+	for {
+		if numProcesses < 1 {
+			break //numProcesses is set to total number of processes, each time one is finished executing this number will decrease
+		}
+
+		if pCount < len(processes) && time == processes[pCount].ArrivalTime { //once we have added all the processes to the ready queue we will stop using
+			//add process to queue
+			readyQueue = append(readyQueue, processes[pCount])
+			readyQueue[len(readyQueue)-1].Burst = processes[pCount].BurstDuration
+			//fmt.Println(readyQueue[len(readyQueue)-1], " added at time = ", time, "its arrival time is", readyQueue[len(readyQueue)-1].ArrivalTime)
+			pCount++
+
+		}
+		//sort readyQueue so shortest BurstDuration is 1st item in queue
+		tempPID := readyQueue[0].ProcessID
+		sort.SliceStable(readyQueue, func(i, j int) bool {
+			return readyQueue[i].BurstDuration < readyQueue[j].BurstDuration
+		})
+		time++
+
+		readyQueue[0].BurstDuration--
+		for i := range readyQueue {
+			if i != 0 {
+				readyQueue[i].Wait++
+			}
+		}
+		if tempPID != readyQueue[0].ProcessID {
+
+			gantt = append(gantt, TimeSlice{
+				PID:   readyQueue[0].ProcessID,
+				Start: start,
+				Stop:  time,
+			})
+			start = time
+		}
+
+		if readyQueue[0].BurstDuration < 1 {
+			//fmt.Println(readyQueue[0].ProcessID, "has finished executing")
+			totalWait += float64(readyQueue[0].Wait)
+			turnaround := readyQueue[0].Wait + readyQueue[0].Burst
+			totalTurnaround += float64(turnaround)
+			schedule[readyQueue[0].ProcessID-1] = []string{
+				fmt.Sprint(readyQueue[0].ProcessID),
+				fmt.Sprint(readyQueue[0].Priority),
+				fmt.Sprint(readyQueue[0].Burst),
+				fmt.Sprint(readyQueue[0].ArrivalTime),
+				fmt.Sprint(readyQueue[0].Wait),
+				fmt.Sprint(turnaround),
+				fmt.Sprint(time),
+			}
+			if len(gantt) > 1 && gantt[len(gantt)-1].PID == readyQueue[0].ProcessID {
+				gantt[len(gantt)-1].Stop = time
+			} else {
+				gantt = append(gantt, TimeSlice{
+					PID:   readyQueue[0].ProcessID,
+					Start: start,
+					Stop:  time,
+				})
+			}
+
+			start = time
+
+			if len(readyQueue) > 1 {
+				//pop front of queue if there is more than 1 process in queue
+				executedP, readyQueue = readyQueue[0], readyQueue[1:]
+			}
+			numProcesses--
+		}
+
+	}
+	avgWait := totalWait / float64(pCount)
+	avgTurnaround := totalTurnaround / float64(pCount)
+	avgThroughput := float64(pCount) / float64(time)
+	outputGantt(w, gantt)
+	outputSchedule(w, schedule, avgWait, avgTurnaround, avgThroughput)
 
 }
 
