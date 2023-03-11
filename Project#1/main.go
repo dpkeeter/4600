@@ -153,7 +153,6 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 			//add process to queue
 			readyQueue = append(readyQueue, processes[pCount])
 			readyQueue[len(readyQueue)-1].Burst = processes[pCount].BurstDuration
-			//fmt.Println(readyQueue[len(readyQueue)-1], " added at time = ", time, "its arrival time is", readyQueue[len(readyQueue)-1].ArrivalTime)
 			pCount++
 
 		}
@@ -239,12 +238,9 @@ func SJFPrioritySchedule(w io.Writer, title string, processes []Process) {
 		time            int64     //time counter
 		pCount          int       //counter for processes slice
 		readyQueue      []Process //Queue for processes ready to be executed
-		//executedP       Process   // process that is currently being executed
-		numProcesses int = len(processes)
+		numProcesses    int       = len(processes)
 	)
 	start = time //set start for gantt chart to 0
-
-	//fmt.Println(executedP) //code doesn't work when this is removed,
 
 	for {
 		if numProcesses < 1 {
@@ -255,7 +251,6 @@ func SJFPrioritySchedule(w io.Writer, title string, processes []Process) {
 			//add process to queue
 			readyQueue = append(readyQueue, processes[pCount])
 			readyQueue[len(readyQueue)-1].Burst = processes[pCount].BurstDuration
-			//fmt.Println(readyQueue[len(readyQueue)-1], " added at time = ", time, "its arrival time is", readyQueue[len(readyQueue)-1].ArrivalTime)
 			pCount++
 
 		}
@@ -365,7 +360,7 @@ func RRSchedule(w io.Writer, title string, processes []Process) {
 		tempPID := readyQueue[qCount].ProcessID
 		time++
 		readyQueue[qCount].BurstDuration--
-		//inc wait for items in readyqueue
+		//inc wait for items in readyQueue
 		for i := range readyQueue {
 			if i != qCount {
 				readyQueue[i].Wait++
