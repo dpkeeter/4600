@@ -29,15 +29,12 @@ func main() {
 
 	// First-come, first-serve scheduling
 	FCFSSchedule(os.Stdout, "First-come, first-serve", processes)
-
 	// Shortest-job-first scheduling
 	SJFSchedule(os.Stdout, "Shortest-job-first", processes)
+	// Priority Scheduling
 	SJFPrioritySchedule(os.Stdout, "Priority", processes)
-
-	//
-
-	//
-	//RRSchedule(os.Stdout, "Round-robin", processes)
+	// Round Robin Scheduling
+	RRSchedule(os.Stdout, "Round-robin", processes)
 }
 
 func openProcessingFile(args ...string) (*os.File, func(), error) {
@@ -143,12 +140,9 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 		time            int64     //time counter
 		pCount          int       //counter for processes slice
 		readyQueue      []Process //Queue for processes ready to be executed
-		executedP       Process   // process that is currently being executed
 		numProcesses    int       = len(processes)
 	)
 	start = time //set start for gantt chart to 0
-
-	fmt.Println(executedP) //code doesn't work when this is removed,
 
 	for {
 		if numProcesses < 1 {
@@ -219,7 +213,8 @@ func SJFSchedule(w io.Writer, title string, processes []Process) {
 
 			if len(readyQueue) > 1 {
 				//pop front of queue if there is more than 1 process in queue
-				executedP, readyQueue = readyQueue[0], readyQueue[1:]
+				var _ Process
+				_, readyQueue = readyQueue[0], readyQueue[1:]
 			}
 			numProcesses--
 		}
@@ -244,12 +239,12 @@ func SJFPrioritySchedule(w io.Writer, title string, processes []Process) {
 		time            int64     //time counter
 		pCount          int       //counter for processes slice
 		readyQueue      []Process //Queue for processes ready to be executed
-		executedP       Process   // process that is currently being executed
-		numProcesses    int       = len(processes)
+		//executedP       Process   // process that is currently being executed
+		numProcesses int = len(processes)
 	)
 	start = time //set start for gantt chart to 0
 
-	fmt.Println(executedP) //code doesn't work when this is removed,
+	//fmt.Println(executedP) //code doesn't work when this is removed,
 
 	for {
 		if numProcesses < 1 {
@@ -324,7 +319,8 @@ func SJFPrioritySchedule(w io.Writer, title string, processes []Process) {
 
 			if len(readyQueue) > 1 {
 				//pop front of queue if there is more than 1 process in queue
-				executedP, readyQueue = readyQueue[0], readyQueue[1:]
+				var _ Process
+				_, readyQueue = readyQueue[0], readyQueue[1:]
 			}
 			numProcesses--
 		}
@@ -339,10 +335,122 @@ func SJFPrioritySchedule(w io.Writer, title string, processes []Process) {
 
 }
 
-//
-
 func RRSchedule(w io.Writer, title string, processes []Process) {
+	var (
+		start           int64
+		totalWait       float64
+		totalTurnaround float64
+		schedule        = make([][]string, len(processes))
+		gantt           = make([]TimeSlice, 0)
+		time            int64     //time counter
+		pCount          int       //counter for processes slice
+		readyQueue      []Process //Queue for processes ready to be executed
+		numProcesses    int       = len(processes)
+	)
+	start = time              //set start for gantt chart to 0
+	var timeQuantum int64 = 1 // change this to modify the time quantum
+	var skip bool = false
+	qCount := 0
+	for {
+		if numProcesses < 1 {
+			break //numProcesses is set to total number of processes, each time one is finished executing this number will decrease
+		}
 
+		if pCount < len(processes) && time == processes[pCount].ArrivalTime { //once we have added all the processes to the ready queue we will stop using
+			//add process to queue
+			readyQueue = append(readyQueue, processes[pCount])
+			readyQueue[len(readyQueue)-1].Burst = processes[pCount].BurstDuration
+			pCount++
+		}
+		tempPID := readyQueue[qCount].ProcessID
+		time++
+		readyQueue[qCount].BurstDuration--
+		//inc wait for items in readyqueue
+		for i := range readyQueue {
+			if i != qCount {
+				readyQueue[i].Wait++
+			}
+		}
+
+		if readyQueue[qCount].BurstDuration < 1 {
+			totalWait += float64(readyQueue[qCount].Wait)
+			turnaround := readyQueue[qCount].Wait + readyQueue[qCount].Burst
+			totalTurnaround += float64(turnaround)
+			schedule[readyQueue[qCount].ProcessID-1] = []string{
+				fmt.Sprint(readyQueue[qCount].ProcessID),
+				fmt.Sprint(readyQueue[qCount].Priority),
+				fmt.Sprint(readyQueue[qCount].Burst),
+				fmt.Sprint(readyQueue[qCount].ArrivalTime),
+				fmt.Sprint(readyQueue[qCount].Wait),
+				fmt.Sprint(turnaround),
+				fmt.Sprint(time),
+			}
+			// if a process swapped during another process execution and reached completion modify the stop time
+			// else append the gantt
+			if len(gantt) > 1 && gantt[len(gantt)-1].PID == readyQueue[qCount].ProcessID {
+				gantt[len(gantt)-1].Stop = time
+			} else {
+				gantt = append(gantt, TimeSlice{
+					PID:   readyQueue[qCount].ProcessID,
+					Start: start,
+					Stop:  time,
+				})
+			}
+
+			start = time
+			skip = true                                            // set flag to skip qCount inc
+			if len(readyQueue) > 1 && qCount < len(readyQueue)-1 { //if item is in middle or front of queue delete
+				readyQueue[qCount] = readyQueue[len(readyQueue)-1]
+				readyQueue = readyQueue[:len(readyQueue)-1]
+				qCount++
+			} else if len(readyQueue) > 1 && qCount == len(readyQueue)-1 { //process is at end of queue so must pop
+				var _ Process
+				_, readyQueue = readyQueue[len(readyQueue)-1], readyQueue[:len(readyQueue)-1]
+				qCount = 0
+			}
+			numProcesses--
+		}
+		if len(readyQueue) > 1 && time%timeQuantum == 0 && !skip { // we have finished current time slice time to move to next process in queue
+			qCount++
+		}
+		if qCount > len(readyQueue)-1 { //if qCount reaches end of array set to 0 so we go back to front
+			qCount = 0
+		}
+		//for proper adding to gantt chart
+		if tempPID != readyQueue[qCount].ProcessID && !skip {
+			if len(readyQueue) > 1 && qCount != 0 {
+				gantt = append(gantt, TimeSlice{
+					PID:   readyQueue[qCount-1].ProcessID,
+					Start: start,
+					Stop:  time,
+				})
+				start = time
+			} else if len(readyQueue) > 1 && qCount == 0 {
+				gantt = append(gantt, TimeSlice{
+					PID:   readyQueue[len(readyQueue)-1].ProcessID,
+					Start: start,
+					Stop:  time,
+				})
+				start = time
+			} else {
+				gantt = append(gantt, TimeSlice{
+					PID:   readyQueue[qCount].ProcessID,
+					Start: start,
+					Stop:  time,
+				})
+				start = time
+			}
+
+		}
+		skip = false //reset flag
+
+	}
+	avgWait := totalWait / float64(pCount)
+	avgTurnaround := totalTurnaround / float64(pCount)
+	avgThroughput := float64(pCount) / float64(time)
+	outputTitle(w, title)
+	outputGantt(w, gantt)
+	outputSchedule(w, schedule, avgWait, avgTurnaround, avgThroughput)
 }
 
 //endregion
