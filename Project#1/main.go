@@ -408,7 +408,7 @@ func RRSchedule(w io.Writer, title string, processes []Process) {
 		if len(readyQueue) > 1 && time%timeQuantum == 0 && !skip { // we have finished current time slice time to move to next process in queue
 			qCount++
 		}
-		if qCount > len(readyQueue)-1 { //if qCount reaches end of array set to 0 so we go back to front
+		if qCount > len(readyQueue)-1 { //if qCount reaches end of array set to 0, so we go back to front of queue
 			qCount = 0
 		}
 		//for proper adding to gantt chart
